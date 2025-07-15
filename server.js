@@ -1,3 +1,4 @@
+const imageProxy = require("./api/image-proxy");
 const express = require("express");
 const cors = require("cors");
 const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
@@ -7,6 +8,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/image-proxy", imageProxy);
+
 
 app.post("/api/profile", async (req, res) => {
   const { username } = req.body;
