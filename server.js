@@ -1,16 +1,16 @@
 const express = require("express");
 const cors = require("cors");
-
-// Suporte a fetch para Node.js versões anteriores a 18
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: fetch }) => fetch(...args));
+const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
+
 app.use(cors());
+app.use(express.json());
 
 app.post("/api/profile", async (req, res) => {
   const { username } = req.body;
+
   if (!username) {
     return res.status(400).json({ error: "username é obrigatório" });
   }
@@ -18,12 +18,18 @@ app.post("/api/profile", async (req, res) => {
   try {
     const response = await fetch(`https://i.instagram.com/api/v1/users/web_profile_info/?username=${username}`, {
       headers: {
-        "x-ig-app-id": "936619743392459",
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "x-ig-app-id": "936619743392459"
       }
     });
 
     const json = await response.json();
+
+    if (!json || !json.data || !json.data.user) {
+      console.error("❌ Instagram respondeu com erro:", json);
+      return res.status(500).json({ error: "Perfil não encontrado ou bloqueado" });
+    }
+
     const user = json.data.user;
 
     const result = {
@@ -32,25 +38,27 @@ app.post("/api/profile", async (req, res) => {
       biography: user.biography,
       profile_pic_url: user.profile_pic_url,
       is_private: user.is_private,
-      posts: user.edge_owner_to_timeline_media.count,
-      followers: user.edge_followed_by.count,
-      following: user.edge_follow.count,
+      posts: user.edge_owner_to_timeline_media?.count || 0,
+      followers: user.edge_followed_by?.count || 0,
+      following: user.edge_follow?.count || 0,
+      feed: []
     };
 
     if (!user.is_private) {
-      result.feed = user.edge_owner_to_timeline_media.edges.map(e => ({
+      result.feed = user.edge_owner_to_timeline_media?.edges?.map(e => ({
         image: e.node.display_url,
         id: e.node.id
-      }));
+      })) || [];
     }
 
-    res.json(result);
+    return res.json(result);
 
   } catch (err) {
-    console.error("Erro:", err);
-    res.status(500).json({ error: "Falha ao buscar perfil" });
+    console.error("🔥 Erro ao buscar perfil:", err.message);
+    return res.status(500).json({ error: "Erro interno" });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("🚀 API rodando na porta", PORT));
+app.listen(PORT, () => {
+  console.log(`🚀 API rodando na porta ${PORT}`);
+});
